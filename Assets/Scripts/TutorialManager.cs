@@ -61,13 +61,6 @@ public class TutorialManager : MonoBehaviour
                     NextStep();
                 }
                 break;
-                
-            //case 5: // NEW: Ceiling/Floor (Shift + Arrows)
-            //    if (holdingShift && (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow)))
-            //    {
-            //        NextStep();
-            //    }
-            //    break;
         }
     }
 
@@ -94,15 +87,12 @@ public class TutorialManager : MonoBehaviour
                 ShowInstruction("Press SPACE to Jump.");
                 break;
             case 3:
-                ShowInstruction("Press ARROW KEYS to select Wall Gravity.\nHold SHIFT + UP ARROW to select Ceiling Gravity. ");
+                ShowInstruction("Press ARROW KEYS to select Wall Gravity.\nHold SHIFT + UP ARROW to select Ceiling Gravity.");
                 break;
-            case 4: // NEW TEXT
+            case 4:
                 ShowInstruction("Press ENTER to switch gravity.");
                 break;
-            //case 5:
-            //    ShowInstruction("Hold SHIFT + UP ARROW to select Ceiling Gravity.");
-            //    break;
-            case 6:
+            case 5:
                 CompleteTutorial();
                 yield break;
         }

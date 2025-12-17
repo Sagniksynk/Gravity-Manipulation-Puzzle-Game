@@ -1,14 +1,14 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance;
+    public static GameManager Instance { get; private set; }
 
     [Header("Game Settings")]
     public float timeLimit = 120f;
-    public int totalCubes;
 
     [Header("References")]
     public Transform player;
@@ -18,8 +18,12 @@ public class GameManager : MonoBehaviour
     public TMP_Text gameOverReasonText;
 
     private float currentTime;
+    private int totalCubes;
     private int collectedCubes = 0;
     private bool isGameOver = false;
+
+    //Cache String Builder or use simple formatting to avoid GC
+    private int lastDisplayedSecond = -1;
 
     // State for falling check
     private float timeFalling = 0f;
@@ -27,90 +31,129 @@ public class GameManager : MonoBehaviour
 
     void Awake()
     {
+        // Singleton Pattern with duplicate protection
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else { Destroy(gameObject); return; }
+
+        // Cache total cubes
+        totalCubes = FindObjectsByType<Collectible>(FindObjectsSortMode.None).Length;
+        if (player != null) playerRb = player.GetComponent<Rigidbody>();
     }
 
     void Start()
     {
         currentTime = timeLimit;
-        totalCubes = FindObjectsByType<Collectible>(FindObjectsSortMode.None).Length;
-
-        if (player != null) playerRb = player.GetComponent<Rigidbody>();
-
-        UpdateUI();
         gameOverPanel.SetActive(false);
+
+        // Initial UI Update
+        UpdateCubesUI(0, totalCubes);
+
+        // Start Optimization Routines
+        StartCoroutine(FallCheckRoutine());
+    }
+
+    void OnEnable()
+    {
+        GameEvents.OnCubeCollected += HandleCubeCollected;
+    }
+
+    void OnDisable()
+    {
+        GameEvents.OnCubeCollected -= HandleCubeCollected;
     }
 
     void Update()
     {
         if (isGameOver) return;
-
-        // 1. Timer Logic
+        // Timer Logic
         currentTime -= Time.deltaTime;
+
+        int currentSecond = Mathf.CeilToInt(currentTime);
+        if (currentSecond != lastDisplayedSecond)
+        {
+            UpdateTimerUI(currentTime);
+            lastDisplayedSecond = currentSecond;
+        }
+
         if (currentTime <= 0)
         {
             EndGame("Time's Up!");
         }
-
-        // 2. Falling into Void Logic
-        CheckFreeFall();
-
-        UpdateUI();
     }
 
-    void CheckFreeFall()
+    // --- Event Handlers ---
+
+    private void HandleCubeCollected(int current, int total)
     {
-        if (player == null) return;
+        collectedCubes = current;
+        UpdateCubesUI(collectedCubes, totalCubes);
 
-        // FIX 1: Raise the start point by 0.5 units (Knees/Waist) so it doesn't clip through the floor
-        Vector3 rayOrigin = player.position + (player.up * 0.5f);
-
-        // Raycast down relative to player's current gravity orientation
-        Ray ray = new Ray(rayOrigin, -player.up);
-
-        // Debug line to visualize the ray in Scene view (optional)
-        Debug.DrawRay(rayOrigin, -player.up * 50f, Color.red);
-
-        // FIX 2: Velocity Check
-        // Only consider it "Falling" if the ray hits nothing AND the player is actually moving.
-        // If speed is near 0, we are just standing still, even if the ray misses.
-        float currentSpeed = playerRb != null ? playerRb.linearVelocity.magnitude : 10f; // Use 'velocity' for older Unity
-
-        // If ray hits NOTHING for 50 units...
-        if (!Physics.Raycast(ray, 50f))
-        {
-            // ... AND we are moving faster than 1.0f (falling)
-            if (currentSpeed > 1.0f)
-            {
-                timeFalling += Time.deltaTime;
-
-                // Wait 1.5s to confirm fall
-                if (timeFalling > 1.5f)
-                {
-                    EndGame("Lost in Space!");
-                }
-            }
-        }
-        else
-        {
-            // Reset if we found ground OR we stopped moving
-            timeFalling = 0f;
-        }
-    }
-
-    public void CollectCube()
-    {
-        collectedCubes++;
         if (collectedCubes >= totalCubes)
         {
             EndGame("Mission Complete!");
         }
     }
 
+    public void RegisterCollectible(Collectible collectible)
+    {
+        // Optional: dynamic registration if needed
+    }
+
+    
+
+    //Throttled Fall Check (Runs every 0.2s instead of every frame)
+    IEnumerator FallCheckRoutine()
+    {
+        WaitForSeconds wait = new WaitForSeconds(0.2f);
+        while (!isGameOver)
+        {
+            CheckFreeFall();
+            yield return wait;
+        }
+    }
+
+    void CheckFreeFall()
+    {
+        if (player == null) return;
+
+        Vector3 rayOrigin = player.position + (player.up * 0.5f);
+        Ray ray = new Ray(rayOrigin, -player.up);
+        float currentSpeed = playerRb != null ? playerRb.linearVelocity.magnitude : 10f;
+        if (!Physics.Raycast(ray, 50f))
+        {
+            if (currentSpeed > 1.0f)
+            {
+                timeFalling += 0.2f;
+                if (timeFalling > 1.5f) EndGame("Lost in Space!");
+            }
+        }
+        else
+        {
+            timeFalling = 0f;
+        }
+    }
+
+    // --- UI Updates ---
+
+    void UpdateTimerUI(float time)
+    {
+        int minutes = Mathf.FloorToInt(time / 60F);
+        int seconds = Mathf.FloorToInt(time % 60F);
+        timerText.text = $"{minutes:00}:{seconds:00}";
+    }
+
+    void UpdateCubesUI(int current, int total)
+    {
+        cubesText.text = $"Cubes: {current} / {total}";
+    }
+
     public void EndGame(string reason)
     {
+        if (isGameOver) return;
         isGameOver = true;
+
+        GameEvents.TriggerGameOver(reason); 
+
         gameOverPanel.SetActive(true);
         gameOverReasonText.text = reason;
 
@@ -119,17 +162,7 @@ public class GameManager : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-
         Time.timeScale = 0f;
-    }
-
-    void UpdateUI()
-    {
-        int minutes = Mathf.FloorToInt(currentTime / 60F);
-        int seconds = Mathf.FloorToInt(currentTime % 60F);
-        timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
-
-        cubesText.text = $"Cubes: {collectedCubes} / {totalCubes}";
     }
 
     public void RestartGame()

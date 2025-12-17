@@ -28,7 +28,6 @@ public class GravityManager : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.useGravity = false;
-        // Use 'velocity' for older Unity, 'linearVelocity' for Unity 6+
         rb.linearVelocity = Vector3.zero;
 
         currentGravityDir = -transform.up;
@@ -81,8 +80,6 @@ public class GravityManager : MonoBehaviour
             currentHologram.transform.position = Vector3.Lerp(currentHologram.transform.position, targetHoloPos, Time.deltaTime * hologramSmoothSpeed);
             currentHologram.transform.rotation = Quaternion.Slerp(currentHologram.transform.rotation, targetHoloRot, Time.deltaTime * hologramSmoothSpeed);
         }
-
-        // --- EXECUTE ---
         if (Input.GetKeyDown(KeyCode.Return) && isHologramActive)
         {
             StartCoroutine(SwitchGravitySequence());
@@ -147,8 +144,6 @@ public class GravityManager : MonoBehaviour
             transform.position = Vector3.Lerp(startPos, endPos, t);
             yield return null;
         }
-
-        // --- FIX STARTS HERE ---
 
         // 1. Force position to end point
         transform.position = endPos;
