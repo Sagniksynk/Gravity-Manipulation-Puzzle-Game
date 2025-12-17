@@ -2,10 +2,12 @@
 
 ![Unity](https://img.shields.io/badge/Unity-6%20%2F%202022.3%2B-black?style=flat&logo=unity)
 ![Language](https://img.shields.io/badge/Language-C%23-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Mac-lightgrey)
+![Architecture](https://img.shields.io/badge/Architecture-Event--Driven-orange)
 ![Status](https://img.shields.io/badge/Status-Completed-success)
 
 **Gravity Shift Protocol** is a third-person sci-fi puzzle platformer developed in Unity. The core mechanic revolves around **6-Directional Gravity Manipulation**, allowing players to walk on walls and ceilings to solve environmental puzzles.
+
+This project demonstrates **high-performance C# scripting**, utilizing advanced design patterns to ensure decoupled architecture and minimal Garbage Collection overhead.
 
 ## 🎮 Gameplay Features
 
@@ -13,15 +15,14 @@
     * Walk on **any surface** (Floor, Walls, Ceiling).
     * **Holographic Preview**: Visualize where gravity will shift before committing.
     * **Head-Pivot Vaulting**: Unique movement mechanic where gravity shifts pivot around the character's head for fluid transitions.
-    * **6-DOF Control**: Access all 4 walls + Ceiling (Shift+Up) + Floor Reset (Shift+Down).
-* **Third-Person Movement**: Camera-relative movement with smooth rotation and animation blending (Idle -> Run).
+* **Third-Person Movement**: Camera-relative movement with smooth rotation and animation blending.
 * **Objectives**:
     * Collect all **Energy Cubes** scattered across the level.
     * **Time Attack**: Complete the level within 2 minutes.
 * **Lose Conditions**:
-    * Falling into the void (Free fall detection).
+    * Falling into the void (Raycast-based free fall detection).
     * Running out of time.
-* **In-Game Tutorial**: Interactive step-by-step guide teaching movement and gravity mechanics.
+* **In-Game Tutorial**: Interactive, state-machine based guide teaching movement mechanics.
 
 ## 🕹️ Controls
 
@@ -35,30 +36,41 @@
 | **Shift + Down Arrow** | **Preview Floor** (Reset Gravity) |
 | **Enter** | **Execute Gravity Shift** |
 
-## 🛠️ Technical Implementation
+## 🛠️ Technical Architecture & Optimizations
 
-### Core Scripts
-* **`GravityManager.cs`**: Handles the physics calculation for custom gravity directions, holographic preview logic, and the smooth lerping of the player's rotation during gravity shifts. It uses a custom "Head Pivot" system to vault the player onto new surfaces.
-* **`PlayerController.cs`**: Custom physics-based movement controller that ignores Unity's default gravity and calculates movement vectors relative to the camera's perspective on the current surface.
-* **`ThirdPersonOrbitCam.cs`**: A smart camera system that orbits the player, aligns with the player's local "Up" vector (so the camera flips with you), and includes collision detection to prevent clipping through walls.
-* **`GameManager.cs`**: Singleton class managing the game loop, timer, UI updates (TextMeshPro), and win/loss states.
+This project focuses on **Clean Code** principles and **Performance Optimization**.
 
-### Physics Logic
-Instead of using Unity's global `Physics.gravity`, this project applies a custom force via `Rigidbody.AddForce` (or `linearVelocity` in Unity 6). This allows for dynamic runtime gravity changes without affecting global physics settings for other objects.
+### 1. Design Patterns
+* **Observer Pattern (Events)**: A static `GameEvents` class handles communication between systems.
+    * *Benefit*: Decouples `Collectible.cs` from `GameManager.cs`. Collectibles simply fire an event when picked up, without needing references to the Game Loop.
+* **Singleton Pattern**: Implemented on `GameManager` with duplicate-destruction logic to ensure a single source of truth for game state.
+* **Dirty Flag Pattern**: UI elements (Timer, Score) only update when data actually changes, rather than rewriting string text every frame.
+
+### 2. Performance Optimizations
+* **Garbage Collection (GC) Reduction**: 
+    * Eliminated string allocation in `Update()` loops.
+    * Cached references to all major components (`Rigidbody`, `Transform`, `Animator`) to avoid `GetComponent` calls during runtime.
+* **Animator Hashing**: 
+    * Replaced string-based references (e.g., `anim.SetBool("IsGrounded")`) with `Animator.StringToHash`. This significantly reduces CPU overhead during animation updates.
+* **Physics Throttling**:
+    * Heavy calculations, such as the "Free Fall Raycast Check," are offloaded to Coroutines running at reduced intervals (5Hz) rather than every frame (60Hz+), saving valuable CPU cycles.
+
+### 3. Core Scripts Overview
+* **`GameEvents.cs`**: Pure C# static class managing Actions/Events for messaging.
+* **`GravityManager.cs`**: Handles physics calculation for custom gravity directions, holographic previews, and the smooth lerping of player rotation (Quaternion math).
+* **`PlayerController.cs`**: Physics-based movement controller that ignores Unity's default gravity, using calculated vectors relative to the custom camera perspective.
+* **`ThirdPersonOrbitCam.cs`**: Smart camera system that aligns with the player's local "Up" vector to prevent gimbal lock when walking on ceilings.
+* **`TutorialManager.cs`**: A coroutine-based state machine that guides the player through inputs and waits for specific triggers before advancing.
 
 ## 🚀 How to Play (Installation)
 
 1.  **Download Build**: Go to the [Releases](../../releases) page and download the version for your OS (Windows/Mac).
-2.  **Run**: Extract the zip file and run `GravityShift.exe` (Windows) or the `.app` file (Mac).
+2.  **Run**: Extract the zip file and run `GravityShift.exe`.
 3.  **Unity Editor**:
     * Clone this repo: `git clone https://github.com/YourUsername/Gravity-Shift-Protocol.git`
-    * Open in Unity Hub (Version 2022.3 or Unity 6 recommended).
+    * Open in Unity Hub (Unity 6 or 2022.3 LTS).
     * Open `Assets/Scenes/GameLevel`.
     * Press Play.
-
-## 📸 Screenshots
-
-*(Add screenshots of your game here: One standing on the floor, one standing on a wall/ceiling with the hologram visible)*
 
 ## 📄 License
 This project is for educational purposes as part of a Unity Developer assessment.
