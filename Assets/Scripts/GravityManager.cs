@@ -6,7 +6,7 @@ public class GravityManager : MonoBehaviour
     [Header("Settings")]
     public float gravityForce = 9.81f;
     public float rotationSpeed = 5f;
-    public float hologramSmoothSpeed = 15f; // New: Controls how fast the hologram moves to new spot
+    public float hologramSmoothSpeed = 15f;
 
     [Tooltip("The Pivot Point. 1.6 is ideal for vaulting from the head.")]
     public float headHeight = 1.6f;
@@ -28,6 +28,7 @@ public class GravityManager : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.useGravity = false;
+        // Use 'velocity' for older Unity, 'linearVelocity' for Unity 6+
         rb.linearVelocity = Vector3.zero;
 
         currentGravityDir = -transform.up;
@@ -35,7 +36,7 @@ public class GravityManager : MonoBehaviour
         if (hologramPrefab != null)
         {
             currentHologram = Instantiate(hologramPrefab, transform.position, transform.rotation);
-            currentHologram.transform.SetParent(transform); // Initially child to keep organized
+            currentHologram.transform.SetParent(transform);
 
             // Clean up
             Destroy(currentHologram.GetComponent<Rigidbody>());
@@ -70,14 +71,13 @@ public class GravityManager : MonoBehaviour
             // Walls
             if (Input.GetKeyDown(KeyCode.UpArrow)) SetHologramTarget(-90, Vector3.right);   // Front
             if (Input.GetKeyDown(KeyCode.DownArrow)) SetHologramTarget(90, Vector3.right);    // Back
-            if (Input.GetKeyDown(KeyCode.LeftArrow)) SetHologramTarget(-90, Vector3.forward); // Left (Fixed)
-            if (Input.GetKeyDown(KeyCode.RightArrow)) SetHologramTarget(90, Vector3.forward);  // Right (Fixed)
+            if (Input.GetKeyDown(KeyCode.LeftArrow)) SetHologramTarget(-90, Vector3.forward); // Left
+            if (Input.GetKeyDown(KeyCode.RightArrow)) SetHologramTarget(90, Vector3.forward);  // Right
         }
 
         // --- SMOOTH HOLOGRAM MOVEMENT ---
         if (isHologramActive)
         {
-            // Smoothly move hologram to the calculated target
             currentHologram.transform.position = Vector3.Lerp(currentHologram.transform.position, targetHoloPos, Time.deltaTime * hologramSmoothSpeed);
             currentHologram.transform.rotation = Quaternion.Slerp(currentHologram.transform.rotation, targetHoloRot, Time.deltaTime * hologramSmoothSpeed);
         }
@@ -91,37 +91,26 @@ public class GravityManager : MonoBehaviour
 
     void SetHologramTarget(float angle, Vector3 axis)
     {
-        // 1. Activate if not already
         if (!isHologramActive)
         {
             currentHologram.SetActive(true);
             isHologramActive = true;
-
-            // If just starting, snap to player so we don't lerp from 0,0,0
+            // Snap to start
             currentHologram.transform.position = transform.position;
             currentHologram.transform.rotation = transform.rotation;
         }
 
-        // 2. Calculate where the hologram SHOULD be
-        // We create a temporary dummy calculation to find the target position/rotation
-        // without actually moving the object yet.
-
+        // Calculate Target
         Vector3 headPivot = transform.position + (transform.up * headHeight);
-
-        // Start from player's current exact spot
         Vector3 startPos = transform.position;
         Quaternion startRot = transform.rotation;
 
-        // Calculate rotation
         Quaternion rotationOffset = Quaternion.AngleAxis(angle, transform.TransformDirection(axis));
         Quaternion finalRot = rotationOffset * startRot;
 
-        // Calculate position (Rotate position around pivot)
-        // Math: NewPos = Pivot + Rotation * (StartPos - Pivot)
         Vector3 dirFromPivot = startPos - headPivot;
         Vector3 finalPos = headPivot + (rotationOffset * dirFromPivot);
 
-        // 3. Set Targets
         if (Mathf.Abs(angle) < 0.01f) // Reset/Floor case
         {
             targetHoloPos = transform.position;
@@ -140,8 +129,6 @@ public class GravityManager : MonoBehaviour
         isHologramActive = false;
         currentHologram.SetActive(false);
 
-        // We transition to where the Hologram WAS aimed (Target), 
-        // not necessarily where it visually "is" if the lerp wasn't finished.
         Quaternion startRot = transform.rotation;
         Quaternion endRot = targetHoloRot;
         Vector3 startPos = transform.position;
@@ -158,16 +145,47 @@ public class GravityManager : MonoBehaviour
 
             transform.rotation = Quaternion.Slerp(startRot, endRot, t);
             transform.position = Vector3.Lerp(startPos, endPos, t);
-
             yield return null;
         }
 
-        transform.rotation = endRot;
-        transform.position = endPos;
-        currentGravityDir = -transform.up;
+        // --- FIX STARTS HERE ---
 
+        // 1. Force position to end point
+        transform.position = endPos;
+
+        // 2. Calculate approximate new vectors based on rotation
+        // FIX: Replaced "-endRot * Vector3.up" with "endRot * Vector3.down"
+        Vector3 approximateGravity = endRot * Vector3.down;
+        Vector3 approximateForward = endRot * Vector3.forward;
+
+        // 3. SNAP GRAVITY to the nearest perfect World Axis (0,1,0), (1,0,0), etc.
+        currentGravityDir = SnapToNearestAxis(approximateGravity);
+
+        // 4. SNAP FORWARD to nearest World Axis (prevents slightly skewed looking direction)
+        Vector3 snappedForward = SnapToNearestAxis(approximateForward);
+
+        // 5. Force Player Rotation to align perfectly with these snapped vectors
+        // This ensures the camera (which tracks Up) will be perfectly level.
+        if (currentGravityDir != Vector3.zero && snappedForward != Vector3.zero)
+        {
+            transform.rotation = Quaternion.LookRotation(snappedForward, -currentGravityDir);
+        }
+
+        // Reset Physics Velocity
         rb.linearVelocity = Vector3.zero;
 
         isSwitchingGravity = false;
+    }
+
+    // Helper to find the closest perfect axis
+    Vector3 SnapToNearestAxis(Vector3 direction)
+    {
+        float x = Mathf.Abs(direction.x);
+        float y = Mathf.Abs(direction.y);
+        float z = Mathf.Abs(direction.z);
+
+        if (x > y && x > z) return new Vector3(Mathf.Sign(direction.x), 0, 0);
+        if (y > x && y > z) return new Vector3(0, Mathf.Sign(direction.y), 0);
+        return new Vector3(0, 0, Mathf.Sign(direction.z));
     }
 }

@@ -1,5 +1,5 @@
 using UnityEngine;
-using TMPro; // REQUIRED for TextMesh Pro
+using TMPro;
 using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
@@ -7,16 +7,15 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance;
 
     [Header("Game Settings")]
-    public float timeLimit = 120f; // 2 Minutes
+    public float timeLimit = 120f;
     public int totalCubes;
-    [SerializeField] private float maxFreeFallingTime = 4f;
 
     [Header("References")]
     public Transform player;
-    public TMP_Text timerText;   // CHANGED: Supports TextMeshPro
-    public TMP_Text cubesText;   // CHANGED: Supports TextMeshPro
+    public TMP_Text timerText;
+    public TMP_Text cubesText;
     public GameObject gameOverPanel;
-    public TMP_Text gameOverReasonText; // CHANGED: Supports TextMeshPro
+    public TMP_Text gameOverReasonText;
 
     private float currentTime;
     private int collectedCubes = 0;
@@ -24,6 +23,7 @@ public class GameManager : MonoBehaviour
 
     // State for falling check
     private float timeFalling = 0f;
+    private Rigidbody playerRb;
 
     void Awake()
     {
@@ -34,9 +34,9 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         currentTime = timeLimit;
-
-        // Auto-count cubes in the scene
         totalCubes = FindObjectsByType<Collectible>(FindObjectsSortMode.None).Length;
+
+        if (player != null) playerRb = player.GetComponent<Rigidbody>();
 
         UpdateUI();
         gameOverPanel.SetActive(false);
@@ -61,22 +61,40 @@ public class GameManager : MonoBehaviour
 
     void CheckFreeFall()
     {
+        if (player == null) return;
+
+        // FIX 1: Raise the start point by 0.5 units (Knees/Waist) so it doesn't clip through the floor
+        Vector3 rayOrigin = player.position + (player.up * 0.5f);
+
         // Raycast down relative to player's current gravity orientation
-        Ray ray = new Ray(player.position, -player.up);
+        Ray ray = new Ray(rayOrigin, -player.up);
+
+        // Debug line to visualize the ray in Scene view (optional)
+        Debug.DrawRay(rayOrigin, -player.up * 50f, Color.red);
+
+        // FIX 2: Velocity Check
+        // Only consider it "Falling" if the ray hits nothing AND the player is actually moving.
+        // If speed is near 0, we are just standing still, even if the ray misses.
+        float currentSpeed = playerRb != null ? playerRb.linearVelocity.magnitude : 10f; // Use 'velocity' for older Unity
 
         // If ray hits NOTHING for 50 units...
         if (!Physics.Raycast(ray, 50f))
         {
-            timeFalling += Time.deltaTime;
-
-            // ...and we have been falling for > 1.5s (buffer for jumps)
-            if (timeFalling > maxFreeFallingTime)
+            // ... AND we are moving faster than 1.0f (falling)
+            if (currentSpeed > 1.0f)
             {
-                EndGame("Lost in Space!");
+                timeFalling += Time.deltaTime;
+
+                // Wait 1.5s to confirm fall
+                if (timeFalling > 1.5f)
+                {
+                    EndGame("Lost in Space!");
+                }
             }
         }
         else
         {
+            // Reset if we found ground OR we stopped moving
             timeFalling = 0f;
         }
     }
@@ -96,20 +114,17 @@ public class GameManager : MonoBehaviour
         gameOverPanel.SetActive(true);
         gameOverReasonText.text = reason;
 
-        // Disable player controls
         if (player.GetComponent<PlayerController>())
             player.GetComponent<PlayerController>().enabled = false;
 
-        // Unlock cursor
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        Time.timeScale = 0f; // Pause
+        Time.timeScale = 0f;
     }
 
     void UpdateUI()
     {
-        // Format time
         int minutes = Mathf.FloorToInt(currentTime / 60F);
         int seconds = Mathf.FloorToInt(currentTime % 60F);
         timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);

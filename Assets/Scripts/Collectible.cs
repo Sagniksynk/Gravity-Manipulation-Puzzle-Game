@@ -1,14 +1,15 @@
 using UnityEngine;
+
 public class Collectible : MonoBehaviour
-{
+{ 
+
     void OnTriggerEnter(Collider other)
     {
-        // Check if the colliding object is the Player
-        // We check the root because the collider might be on a child object
-        if (other.transform.root.CompareTag("Player"))
-        {
+        // Robust check: Look for the Player tag or the component specifically
+        if (other.CompareTag("Player") || other.GetComponentInParent<PlayerController>() != null)
+        { 
             GameManager.Instance.CollectCube();
-            Destroy(gameObject); // Remove the cube
+            Destroy(gameObject);
         }
     }
 }
