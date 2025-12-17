@@ -76,4 +76,4 @@ This project focuses on **Clean Code** principles and **Performance Optimization
 This project is for educational purposes as part of a Unity Developer assessment.
 
 ---
-*Developed by [Sagnik Dasgupta]*
+*Developed by Sagnik Dasgupta*
