@@ -67,13 +67,13 @@ This project focuses on **Clean Code** principles and **Performance Optimization
 1.  **Download Build**: Go to the [Releases](../../releases) page and download the version for your OS (Windows/Mac).
 2.  **Run**: Extract the zip file and run `GravityShift.exe`.
 3.  **Unity Editor**:
-    * Clone this repo: `git clone https://github.com/YourUsername/Gravity-Shift-Protocol.git`
+    * Clone this repo: `git clone https://github.com/Sagniksynk/Gravity-Manipulation-Puzzle-Game.git`
     * Open in Unity Hub (Unity 6 or 2022.3 LTS).
-    * Open `Assets/Scenes/GameLevel`.
+    * Open `Assets/Scenes/SampleScene`.
     * Press Play.
 
 ## 📄 License
 This project is for educational purposes as part of a Unity Developer assessment.
 
 ---
-*Developed by [Your Name]*
+*Developed by [Sagnik Dasgupta]*
